@@ -14,16 +14,12 @@ jobs:
       - name: Unzip project
         run: |
           ZIP=$(ls *.zip | head -1)
-          echo "Using $ZIP"
           mkdir -p project
           unzip -o -q "$ZIP" -d project
-          # If the zip had a top folder, move into it
           if [ ! -f project/settings.gradle.kts ]; then
             INNER=$(dirname "$(find project -name settings.gradle.kts | head -1)")
-            echo "Project found in $INNER"
             cp -r "$INNER"/. project/
           fi
-          ls -la project
 
       - uses: actions/setup-java@v4
         with:
@@ -36,7 +32,14 @@ jobs:
 
       - name: Build debug APK
         working-directory: project
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log || {
+            echo ""
+            echo "================ ERRORS ================"
+            grep -E "^e: |error:|What went wrong|Unresolved|Could not" -A4 build.log | head -60
+            exit 1
+          }
 
       - uses: actions/upload-artifact@v4
         with:
