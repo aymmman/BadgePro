@@ -2,7 +2,7 @@ name: Build BadgePro APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -11,17 +11,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Find project folder
-        id: find
+      - name: Unzip project
         run: |
-          echo "=== Repo files ==="
-          find . -path ./.git -prune -o -type f -print | head -50
-          DIR=$(dirname "$(find . -name settings.gradle.kts -not -path './.git/*' | head -1)")
-          if [ -z "$DIR" ] || [ "$DIR" = "." -a ! -f settings.gradle.kts ]; then
-            echo "settings.gradle.kts NOT FOUND"; exit 1
+          ZIP=$(ls *.zip | head -1)
+          echo "Using $ZIP"
+          mkdir -p project
+          unzip -o -q "$ZIP" -d project
+          # If the zip had a top folder, move into it
+          if [ ! -f project/settings.gradle.kts ]; then
+            INNER=$(dirname "$(find project -name settings.gradle.kts | head -1)")
+            echo "Project found in $INNER"
+            cp -r "$INNER"/. project/
           fi
-          echo "Project folder: $DIR"
-          echo "dir=$DIR" >> $GITHUB_OUTPUT
+          ls -la project
 
       - uses: actions/setup-java@v4
         with:
@@ -33,10 +35,10 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build debug APK
-        working-directory: ${{ steps.find.outputs.dir }}
+        working-directory: project
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: BadgePro-debug-apk
-          path: ${{ steps.find.outputs.dir }}/app/build/outputs/apk/debug/*.apk
+          path: project/app/build/outputs/apk/debug/*.apk
