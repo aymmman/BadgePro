@@ -2,7 +2,7 @@ name: Build BadgePro APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
@@ -10,6 +10,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Find project folder
+        id: find
+        run: |
+          echo "=== Repo files ==="
+          find . -path ./.git -prune -o -type f -print | head -50
+          DIR=$(dirname "$(find . -name settings.gradle.kts -not -path './.git/*' | head -1)")
+          if [ -z "$DIR" ] || [ "$DIR" = "." -a ! -f settings.gradle.kts ]; then
+            echo "settings.gradle.kts NOT FOUND"; exit 1
+          fi
+          echo "Project folder: $DIR"
+          echo "dir=$DIR" >> $GITHUB_OUTPUT
 
       - uses: actions/setup-java@v4
         with:
@@ -21,9 +33,10 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build debug APK
+        working-directory: ${{ steps.find.outputs.dir }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: BadgePro-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: ${{ steps.find.outputs.dir }}/app/build/outputs/apk/debug/*.apk
